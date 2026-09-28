@@ -1,0 +1,34 @@
+[project]
+name = "nnscope"
+version = "0.1.0"
+description = "Watch your NumPy neural network learn: a live, replayable dashboard for weights, gradients, activations and loss."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "michaelks", email = "michaelks540@gmail.com" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.21",
+]
+keywords = ["neural-network", "numpy", "visualization", "backpropagation", "education", "deep-learning", "dashboard"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+[project.optional-dependencies]
+png = ["matplotlib>=3.5"]
+
+[dependency-groups]
+dev = ["pytest>=7"]
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"

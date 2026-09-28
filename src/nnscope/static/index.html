@@ -477,8 +477,7 @@ function drawGraph() {
         if (keep && !keep[i][j]) return;
         const [x1, y1] = G.pos[l][i], [x2, y2] = G.pos[l + 1][j], a = Math.abs(v) / m;
         if (a < 0.02 && !keep) return;
-        ctx.strokeStyle = v >= 0 ? "rgba(8,119,189," : "rgba(245,147,34,";
-        ctx.strokeStyle += (0.15 + 0.85 * a).toFixed(2) + ")";
+        ctx.strokeStyle = (v >= 0 ? "rgba(8,119,189," : "rgba(245,147,34,") + (0.15 + 0.85 * a).toFixed(2) + ")";
         ctx.lineWidth = 0.4 + 4 * a;
         ctx.beginPath(); ctx.moveTo(x1, y1);
         if (!vertical) { const xm = (x1 + x2) / 2; ctx.bezierCurveTo(xm, y1, xm, y2, x2, y2); }

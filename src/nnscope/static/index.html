@@ -1,4 +1,857 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>nnscope</title>
-<script>/*__NNSCOPE_BOOT__*/</script></head>
-<body><p>nnscope dashboard placeholder (full UI pending, see .dev/PROGRESS.md)</p></body></html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>nnscope</title>
+<script>/*__NNSCOPE_BOOT__*/</script>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --ink: #1d2330; --muted: #6b7280; --faint: #9aa1ab; --line: #e3e6ea;
+    --accent: #183d4e; --pos: #0877bd; --neg: #f59322; --mid: #e8eaeb; --bad: #d64545; --warn: #c7811a; --ok: #2f9e6e;
+    --chip: #eef1f4; --shadow: 0 1px 3px rgba(16,24,40,.08);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --card: #171b21; --ink: #e6e9ee; --muted: #9aa3ae; --faint: #6c7581; --line: #2a313b;
+    --accent: #7cc4ff; --mid: #2a3038; --chip: #222831; --shadow: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216; --card: #171b21; --ink: #e6e9ee; --muted: #9aa3ae; --faint: #6c7581; --line: #2a313b;
+      --accent: #7cc4ff; --mid: #2a3038; --chip: #222831; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  button, select { font: inherit; color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 10px; cursor: pointer; min-height: 36px; }
+  button:hover, select:hover { border-color: var(--faint); }
+  :focus-visible { outline: 2px solid var(--pos); outline-offset: 2px; }
+
+  header.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+  .brand { font-weight: 700; letter-spacing: .2px; }
+  .brand small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+  .pill { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--chip); color: var(--muted); font-weight: 600; }
+  .pill.live { background: #e3f6ec; color: #17794b; } .pill.live::before { content: "● "; }
+  .pill.dead { background: #fde8e8; color: var(--bad); }
+  :root[data-theme="dark"] .pill.live { background: #173326; color: #6fe0a6; }
+  .spacer { flex: 1; }
+  .stepnow { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .stepnow b { color: var(--ink); }
+  .menu { position: relative; }
+  .menu-list { position: absolute; right: 0; top: 42px; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15); padding: 6px; display: none; min-width: 190px; z-index: 10; }
+  .menu-list.open { display: block; }
+  .menu-list button { display: block; width: 100%; text-align: left; border: 0; background: transparent; }
+  .menu-list button:hover { background: var(--chip); }
+
+  main.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; padding: 14px 16px 90px;
+    max-width: 1600px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow);
+    min-width: 0; }
+  .card.wide { grid-column: 1 / -1; }
+  .card.flash { animation: flash 1.2s; }
+  @keyframes flash { 0%, 60% { box-shadow: 0 0 0 3px var(--warn); } }
+  .card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .card-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin: 0; font-weight: 650; }
+  .card-head .ctrls { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .help-btn { width: 26px; height: 26px; min-height: 26px; padding: 0; border-radius: 50%; font-weight: 700; color: var(--muted); }
+  .help { display: none; background: var(--chip); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 13.5px; color: var(--ink); }
+  .help.open { display: block; }
+  .help p { margin: 6px 0; }
+  .help .eq { font-family: "Cambria Math", "STIX Two Math", Georgia, serif; font-size: 15px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; background: transparent; color: var(--muted); min-height: 32px; padding: 4px 10px; }
+  .seg button.on { background: var(--chip); color: var(--ink); font-weight: 600; }
+  canvas { display: block; width: 100%; }
+  .graphwrap { position: relative; }
+  .empty { color: var(--faint); font-size: 13px; padding: 20px 4px; text-align: center; }
+
+  .inspector { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; display: none; }
+  .inspector.open { display: block; }
+  .inspector h3 { margin: 0 0 6px; font-size: 14px; }
+  .inspector .eq { font-family: "Cambria Math", "STIX Two Math", Georgia, serif; font-size: 15px; margin: 6px 0; overflow-x: auto; }
+  .inspector table { border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; margin-top: 6px; }
+  .inspector td, .inspector th { padding: 3px 10px 3px 0; text-align: right; }
+  .inspector th { color: var(--muted); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .legend button { min-height: 28px; padding: 2px 8px; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
+  .legend button.off { opacity: .4; }
+  .sw { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  .feed { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; }
+  .feed li { padding: 8px 6px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13.5px; }
+  .feed li:hover { background: var(--chip); }
+  .feed .badge { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-right: 6px; background: var(--chip); }
+  .feed .warn .badge { color: var(--warn); } .feed .error .badge { color: var(--bad); } .feed .info .badge { color: var(--pos); }
+
+  .health-row { display: grid; grid-template-columns: 92px repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; padding: 6px 0;
+    border-bottom: 1px solid var(--line); }
+  .health-row .nm { font-size: 12.5px; color: var(--muted); }
+  .health-row .nm b { color: var(--ink); display: block; }
+  .health-head { font-size: 11.5px; color: var(--faint); }
+  .hist-row { display: grid; grid-template-columns: 92px repeat(2, minmax(0, 1fr)); gap: 8px; align-items: center; padding: 4px 0; }
+  .act-row { padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .act-row .nm { font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+  .act-row .nm b { color: var(--ink); }
+  .act-row .nm .dead { color: var(--bad); font-weight: 600; }
+
+  footer.timeline { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line); }
+  footer input[type=range] { flex: 1; accent-color: var(--accent); height: 28px; }
+  footer label { color: var(--muted); font-size: 13px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+  #playBtn { width: 44px; }
+  #tip { position: fixed; pointer-events: none; z-index: 20; background: #111827; color: #fff; font-size: 12.5px; padding: 6px 9px;
+    border-radius: 6px; display: none; max-width: 280px; font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 760px) {
+    main.grid { grid-template-columns: 1fr; padding: 10px 10px 96px; gap: 10px; }
+    header.top { padding: 8px 10px; gap: 8px; }
+    .brand small { display: none; }
+    .health-row { grid-template-columns: 70px repeat(3, minmax(0, 1fr)); }
+    .hist-row { grid-template-columns: 70px repeat(2, minmax(0, 1fr)); }
+    button, select { min-height: 40px; }
+    footer label span { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">nnscope <small id="runName"></small></div>
+  <span id="status" class="pill">loading</span>
+  <span class="stepnow">step <b id="stepNow">–</b></span>
+  <div class="spacer"></div>
+  <div class="menu">
+    <button id="exportBtn" aria-haspopup="true" aria-expanded="false">Export ▾</button>
+    <div class="menu-list" id="exportMenu" role="menu">
+      <button data-x="net-svg" role="menuitem">Network (SVG)</button>
+      <button data-x="net-png" role="menuitem">Network (PNG)</button>
+      <button data-x="loss-png" role="menuitem">Loss curve (PNG)</button>
+      <button data-x="dash-png" role="menuitem">Whole dashboard (PNG)</button>
+      <button data-x="json" role="menuitem">Run data (JSON)</button>
+    </div>
+  </div>
+  <button id="themeBtn" title="Toggle light/dark" aria-label="Toggle theme">◐</button>
+</header>
+
+<main class="grid">
+  <section class="card wide" id="card-graph" data-title="Network">
+    <div class="card-head"><h2>Network</h2>
+      <div class="ctrls">
+        <div class="seg" id="edgeSeg" aria-label="Edges show">
+          <button data-v="w" class="on">weights</button><button data-v="g">gradients</button><button data-v="u">updates</button></div>
+        <div class="seg" id="nodeSeg" aria-label="Nodes show">
+          <button data-v="mean" class="on">mean act.</button><button data-v="frac">% active</button></div>
+        <select id="topk" aria-label="Edges per neuron"><option value="0">all edges</option><option value="8">top 8</option>
+          <option value="4">top 4</option><option value="2">top 2</option></select>
+        <button class="help-btn" data-help="help-graph" aria-label="What am I seeing?">?</button></div></div>
+    <div class="help" id="help-graph">
+      <p><b>Circles are neurons, lines are weights.</b> Column k shows layer k's outputs. The line from neuron i to neuron j is the
+        weight w<sub>ij</sub>: <span style="color:var(--pos)">blue</span> is positive, <span style="color:var(--neg)">orange</span> is
+        negative, and thickness is |w|. Forward pass for neuron j: <span class="eq">z<sub>j</sub> = Σ<sub>i</sub> w<sub>ij</sub> a<sub>i</sub> + b<sub>j</sub>, a<sub>j</sub> = f(z<sub>j</sub>)</span>.</p>
+      <p><b>gradients</b> shows <span class="eq">∂L/∂w<sub>ij</sub> = mean over the batch of δ<sub>j</sub>·a<sub>i</sub></span>, the direction
+        backprop pushes each weight (SGD moves it the opposite way). <b>updates</b> shows how much each weight changed since the previous
+        snapshot. Node colour is the neuron's mean activation on the logged batch, or its % active (a ReLU that is never active is
+        <b style="color:var(--bad)">dead</b>, ringed in red). Click a neuron to inspect it.</p>
+      <p>Large layers draw at most 32 evenly spaced neurons; all statistics still use every neuron.</p></div>
+    <div class="graphwrap"><canvas id="graph" height="420"></canvas></div>
+    <div class="inspector" id="inspector"></div>
+  </section>
+
+  <section class="card" id="card-loss" data-title="Loss & metrics">
+    <div class="card-head"><h2>Loss &amp; metrics</h2>
+      <div class="ctrls"><div class="seg" id="scaleSeg"><button data-v="lin">linear</button><button data-v="log" class="on">log</button></div>
+        <button class="help-btn" data-help="help-loss" aria-label="What am I seeing?">?</button></div></div>
+    <div class="help" id="help-loss">
+      <p>Every scalar you log (<code>loss=</code>, <code>metrics={...}</code>) over training steps. The vertical line marks the step
+        selected on the timeline.</p>
+      <p><b>What to look for:</b> training loss should fall steadily. Bumps and spikes mean the learning rate is too high. If the test/validation loss
+        turns upward while the training loss keeps falling, the network is <b>overfitting</b>: it memorises the training set instead of generalising.</p></div>
+    <canvas id="loss" height="240"></canvas>
+    <div class="legend" id="lossLegend"></div>
+  </section>
+
+  <section class="card" id="card-insights" data-title="Insights">
+    <div class="card-head"><h2>Insights</h2>
+      <div class="ctrls"><button class="help-btn" data-help="help-ins" aria-label="What am I seeing?">?</button></div></div>
+    <div class="help" id="help-ins"><p>Automatic, plain-language diagnoses of what the numbers mean: vanishing or exploding gradients,
+      dead or saturated units, a learning rate that is too high or too low, overfitting. Each fires once, at the step where it first held.
+      Click one to jump there.</p></div>
+    <ul class="feed" id="feed"></ul>
+    <div class="empty" id="feedEmpty">No issues detected so far.</div>
+  </section>
+
+  <section class="card" id="card-flow" data-title="Gradient flow">
+    <div class="card-head"><h2>Gradient flow</h2>
+      <div class="ctrls"><button class="help-btn" data-help="help-flow" aria-label="What am I seeing?">?</button></div></div>
+    <div class="help" id="help-flow">
+      <p>Mean |∂L/∂W| for each layer at the selected step (log scale), from the input side to the output side. Backprop computes these from the
+        output backwards: <span class="eq">δ<sup>ℓ</sup> = (W<sup>ℓ+1</sup> δ<sup>ℓ+1</sup>) ⊙ f′(z<sup>ℓ</sup>)</span>, so each layer multiplies
+        the signal by its weights and by f′.</p>
+      <p><b>Healthy:</b> bars of similar height. <b>Vanishing:</b> bars shrink towards the input (a sigmoid's f′ ≤ 0.25 per layer).
+        <b>Exploding:</b> bars grow towards the input.</p></div>
+    <canvas id="flow" height="200"></canvas>
+  </section>
+
+  <section class="card" id="card-health" data-title="Layer health">
+    <div class="card-head"><h2>Layer health</h2>
+      <div class="ctrls"><button class="help-btn" data-help="help-health" aria-label="What am I seeing?">?</button></div></div>
+    <div class="help" id="help-health">
+      <p>Per layer over time: the weight norm ‖W‖, the gradient norm ‖∇W‖ and the <b>update ratio</b> ‖ΔW‖/‖W‖ (how much the weights changed
+        since the previous log, relative to their size). Below: histograms of W and ∇W at the selected step.</p>
+      <p><b>Rule of thumb:</b> an update ratio around 10<sup>−3</sup> is healthy. Around 10<sup>−1</sup> the learning rate is too high; below 10<sup>−6</sup> nothing
+        is learning. A histogram of W that keeps widening means the weights are growing (consider weight decay).</p></div>
+    <div id="health"></div>
+  </section>
+
+  <section class="card" id="card-acts" data-title="Activations">
+    <div class="card-head"><h2>Activations</h2>
+      <div class="ctrls"><button class="help-btn" data-help="help-acts" aria-label="What am I seeing?">?</button></div></div>
+    <div class="help" id="help-acts">
+      <p>For each hidden layer, one cell per drawn neuron: the top strip is its <b>mean activation</b> on the logged batch, the bottom strip the
+        <b>fraction of samples where it is active</b> (ReLU: output &gt; 0; tanh/sigmoid: not saturated).</p>
+      <p>A neuron with 0 % active passes no gradient back, so it has stopped learning (<b style="color:var(--bad)">dead ReLU</b> or
+        <b style="color:var(--bad)">saturated</b> unit). Activation stats need activations: they are read automatically from layers that cache
+        their input (e.g. <code>Linear.x</code>), or pass <code>activations=[a1, a2, …]</code>.</p></div>
+    <div id="acts"></div>
+  </section>
+
+  <section class="card" id="card-latent" data-title="Latent space">
+    <div class="card-head"><h2>Latent space</h2>
+      <div class="ctrls"><button class="help-btn" data-help="help-latent" aria-label="What am I seeing?">?</button></div></div>
+    <div class="help" id="help-latent">
+      <p>The features of the layer you pass as <code>latent=Z</code>, one dot per sample, coloured by <code>labels=</code>. With more than 2
+        dimensions they are projected onto their first two principal components (PCA); the axis titles show how much variance each keeps.</p>
+      <p>Scrub the timeline to watch training <b>reshape the representation</b>: the classes usually start mixed and end up (linearly)
+        separable, because the output layer is linear in these features.</p></div>
+    <canvas id="latent" height="300"></canvas>
+    <div class="empty" id="latentEmpty">Pass <code>latent=Z, labels=y</code> to <code>scope.log(...)</code> to see this view.</div>
+  </section>
+</main>
+
+<footer class="timeline" aria-label="Timeline">
+  <button id="playBtn" aria-label="Play replay">▶</button>
+  <input type="range" id="slider" min="0" max="0" value="0" aria-label="Snapshot">
+  <label id="followWrap"><input type="checkbox" id="follow" checked><span>follow live</span></label>
+</footer>
+<div id="tip" role="tooltip"></div>
+
+<script>
+"use strict";
+// ======================================================================= state
+const BOOT = window.NNSCOPE || { live: false, data: null };
+const D = { name: "run", structure: null, records: [], snapshots: [], insights: [] };
+const UI = { cur: 0, follow: true, edge: "w", node: "mean", topk: 0, logScale: true, hidden: new Set(), playing: false,
+             selected: null, status: "loading" };
+const $ = (id) => document.getElementById(id);
+const PALETTE = ["#f59322", "#0877bd", "#2ca02c", "#9467bd", "#d62728", "#8c564b", "#e377c2", "#17becf"];
+const SERIES = ["#1d2330", "#f59322", "#0877bd", "#2ca02c", "#9467bd", "#d62728", "#8c564b", "#17becf"];
+
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function isDark() { return css("--bg").toLowerCase() !== "#f4f5f7"; }
+
+// diverging colour: orange (−1) … neutral (0) … blue (+1)
+function rgbOf(v) {
+  const t = Math.max(-1, Math.min(1, v)), c = t < 0 ? [245, 147, 34] : [8, 119, 189];
+  const mid = isDark() ? [42, 48, 56] : [232, 234, 235], a = Math.abs(t);
+  return `rgb(${mid.map((m, i) => Math.round(m + (c[i] - m) * a)).join(",")})`;
+}
+function fmt(v, d = 3) {
+  if (v === null || v === undefined || !isFinite(v)) return "–";
+  const a = Math.abs(v);
+  return a !== 0 && (a < 1e-3 || a >= 1e4) ? v.toExponential(2) : (+v.toFixed(d)).toString();
+}
+
+// ======================================================================= data intake
+function reset(structure) {
+  D.structure = structure; D.records = []; D.snapshots = []; D.insights = []; UI.cur = 0; UI.selected = null;
+}
+function load(data) {
+  if (!data) return;
+  D.name = data.name || "run";
+  D.structure = data.structure; D.records = data.records || []; D.snapshots = data.snapshots || [];
+  D.insights = data.insights || [];
+  UI.cur = Math.max(0, D.snapshots.length - 1);
+}
+function handle(msg) {
+  if (msg.type === "structure") { reset(msg.structure); }
+  else if (msg.type === "record") D.records.push(msg);
+  else if (msg.type === "snapshot") { D.snapshots.push(msg); if (UI.follow) UI.cur = D.snapshots.length - 1; }
+  else if (msg.type === "insight") D.insights.push(msg);
+  else if (msg.type === "end") setStatus("finished");
+}
+function setStatus(s) {
+  UI.status = s;
+  const el = $("status");
+  el.textContent = { live: "LIVE", replay: "REPLAY", finished: "FINISHED", disconnected: "DISCONNECTED", loading: "LOADING",
+                     waiting: "WAITING FOR DATA" }[s] || s;
+  el.className = "pill" + (s === "live" ? " live" : s === "disconnected" ? " dead" : "");
+  $("followWrap").style.display = s === "live" ? "" : "none";
+}
+
+async function boot() {
+  $("runName").textContent = "";
+  if (!BOOT.live) { load(BOOT.data); setStatus("replay"); render(); return; }
+  const sync = async () => {
+    try { load(await (await fetch("api/history")).json()); } catch (e) { /* server gone */ }
+    setStatus(D.records.length ? "live" : "waiting"); render();
+  };
+  await sync();
+  const es = new EventSource("api/stream");
+  let broken = false;
+  es.onmessage = (ev) => {
+    for (const m of JSON.parse(ev.data)) handle(m);
+    if (UI.status !== "finished") setStatus("live");
+    render();
+  };
+  es.onerror = () => { if (UI.status !== "finished") setStatus("disconnected"); broken = true; };
+  es.onopen = () => { if (broken) { broken = false; sync(); } };
+}
+
+// ======================================================================= current position
+function curSnap() { return D.snapshots[Math.min(UI.cur, D.snapshots.length - 1)] || null; }
+function prevSnap() { return UI.cur > 0 ? D.snapshots[UI.cur - 1] : null; }
+function curRecord() {
+  const s = curSnap();
+  if (!D.records.length) return null;
+  if (!s) return D.records[D.records.length - 1];
+  let best = D.records[0];
+  for (const r of D.records) { if (r.step <= s.step) best = r; else break; }
+  return best;
+}
+
+// ======================================================================= render scheduling
+let pending = false;
+function render() {
+  if (pending) return;
+  pending = true;
+  requestAnimationFrame(() => { pending = false; draw(); });
+}
+function draw() {
+  $("runName").textContent = D.name;
+  const s = curSnap(), rec = curRecord();
+  $("stepNow").textContent = s ? s.step : rec ? rec.step : "–";
+  const sl = $("slider");
+  sl.max = Math.max(0, D.snapshots.length - 1); sl.value = UI.cur;
+  drawGraph(); drawLoss(); drawFeed(); drawFlow(); drawHealth(); drawActs(); drawLatent(); drawInspector();
+}
+
+// ======================================================================= canvas helpers
+function setupCanvas(cv, cssHeight) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || cv.parentElement.clientWidth || 300;
+  if (cssHeight) cv.style.height = cssHeight + "px";
+  const h = cv.clientHeight || cssHeight || 200;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+const tip = $("tip");
+function showTip(x, y, html) {
+  tip.innerHTML = html; tip.style.display = "block";
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(x + 14, window.innerWidth - r.width - 8) + "px";
+  tip.style.top = Math.min(y + 12, window.innerHeight - r.height - 8) + "px";
+}
+function hideTip() { tip.style.display = "none"; }
+
+// ======================================================================= controls
+function seg(id, key, after) {
+  $(id).querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    $(id).querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    UI[key] = b.dataset.v; if (after) after(); render();
+  }));
+}
+seg("edgeSeg", "edge"); seg("nodeSeg", "node");
+seg("scaleSeg", "scale", () => { UI.logScale = document.querySelector("#scaleSeg .on").dataset.v === "log"; });
+$("topk").addEventListener("change", (e) => { UI.topk = +e.target.value; render(); });
+document.querySelectorAll(".help-btn").forEach((b) => b.addEventListener("click", () => {
+  const h = $(b.dataset.help); h.classList.toggle("open"); b.setAttribute("aria-expanded", h.classList.contains("open"));
+}));
+$("slider").addEventListener("input", (e) => {
+  UI.cur = +e.target.value; UI.follow = UI.cur === D.snapshots.length - 1 && UI.follow; $("follow").checked = UI.follow; render();
+});
+$("follow").addEventListener("change", (e) => { UI.follow = e.target.checked; if (UI.follow) UI.cur = D.snapshots.length - 1; render(); });
+let playTimer = null;
+$("playBtn").addEventListener("click", () => togglePlay());
+function togglePlay(force) {
+  UI.playing = force !== undefined ? force : !UI.playing;
+  $("playBtn").textContent = UI.playing ? "❚❚" : "▶";
+  clearInterval(playTimer);
+  if (UI.playing) {
+    if (UI.cur >= D.snapshots.length - 1) UI.cur = 0;
+    UI.follow = false; $("follow").checked = false;
+    playTimer = setInterval(() => {
+      if (UI.cur >= D.snapshots.length - 1) { togglePlay(false); return; }
+      UI.cur++; render();
+    }, Math.max(40, 6000 / Math.max(1, D.snapshots.length)));
+  }
+}
+document.addEventListener("keydown", (e) => {
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName) && e.target.type !== "range") return;
+  if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+  else if (e.key === "ArrowLeft") { UI.cur = Math.max(0, UI.cur - 1); UI.follow = false; render(); }
+  else if (e.key === "ArrowRight") { UI.cur = Math.min(D.snapshots.length - 1, UI.cur + 1); render(); }
+});
+$("themeBtn").addEventListener("click", () => {
+  const root = document.documentElement, dark = isDark();
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+  try { localStorage.setItem("nnscope-theme", root.getAttribute("data-theme")); } catch (e) { /* storage blocked */ }
+  render();
+});
+try { const t = localStorage.getItem("nnscope-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch (e) { /* ignore */ }
+$("exportBtn").addEventListener("click", (e) => {
+  e.stopPropagation(); const m = $("exportMenu"); m.classList.toggle("open");
+  $("exportBtn").setAttribute("aria-expanded", m.classList.contains("open"));
+});
+document.addEventListener("click", () => $("exportMenu").classList.remove("open"));
+$("exportMenu").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => doExport(b.dataset.x)));
+let resizeT;
+new ResizeObserver(() => { clearTimeout(resizeT); resizeT = setTimeout(render, 60); }).observe(document.querySelector("main"));
+
+// ======================================================================= network graph
+const G = { pos: [], vertical: false };
+function layerLabel(c) {
+  const L = D.structure.layers;
+  if (c === 0) return `input · ${L[0].in}`;
+  const l = L[c - 1], hidden = l.out - l.shown_out.length;
+  return `${c === L.length ? "output" : "layer " + c} · ${l.out}${l.act ? " " + l.act : ""}${hidden > 0 ? ` (+${hidden})` : ""}`;
+}
+function graphLayout(w, h, vertical) {
+  const L = D.structure.layers, cols = [L[0].shown_in, ...L.map((l) => l.shown_out)], n = cols.length;
+  return cols.map((shown, c) => {
+    const k = shown.length;
+    if (!vertical) {
+      const x = 70 + (w - 140) * c / Math.max(1, n - 1), gap = Math.min(28, (h - 70) / Math.max(k, 1));
+      const top = 40 + (h - 50) / 2 - gap * (k - 1) / 2;
+      return shown.map((_, j) => [x, top + gap * j]);
+    }
+    const y = 50 + (h - 90) * c / Math.max(1, n - 1), gap = Math.min(28, (w - 30) / Math.max(k, 1));
+    const left = w / 2 - gap * (k - 1) / 2;
+    return shown.map((_, j) => [left + gap * j, y]);
+  });
+}
+function edgeValues() {
+  const s = curSnap(), p = prevSnap();
+  if (!s) return null;
+  if (UI.edge === "g") return s.G;
+  if (UI.edge === "u") return s.W.map((Wl, l) => Wl.map((row, i) => row.map((v, j) => (p && p.W[l] ? v - p.W[l][i][j] : 0))));
+  return s.W;
+}
+function keptEdges(M) {                       // top-k incoming edges per target neuron (by |value|)
+  if (!UI.topk || !M.length) return null;
+  const keep = M.map((row) => row.map(() => false));
+  for (let j = 0; j < M[0].length; j++) {
+    const col = M.map((row, i) => [Math.abs(row[j]), i]).sort((a, b) => b[0] - a[0]).slice(0, UI.topk);
+    for (const [, i] of col) keep[i][j] = true;
+  }
+  return keep;
+}
+function nodeFill(c, j, s) {
+  if (c === 0 || !s || !s.nodes[c - 1]) return isDark() ? "#3a424d" : "#ffffff";
+  const nd = s.nodes[c - 1];
+  if (UI.node === "frac") return rgbOf(nd.frac[j]);
+  const m = Math.max(1e-9, ...nd.mean.map(Math.abs));
+  return rgbOf(nd.mean[j] / m);
+}
+function drawGraph() {
+  const cv = $("graph");
+  if (!D.structure) { setupCanvas(cv, 120).ctx.fillText("", 0, 0); return; }
+  const w = cv.parentElement.clientWidth, vertical = w < 640;
+  const cols = D.structure.layers.length + 1, maxN = Math.max(...[D.structure.layers[0].shown_in.length, ...D.structure.layers.map((l) => l.shown_out.length)]);
+  const H = vertical ? Math.max(360, cols * 120) : Math.max(300, Math.min(900, maxN * 26 + 90));
+  const { ctx, h } = setupCanvas(cv, H);
+  G.vertical = vertical; G.pos = graphLayout(w, h, vertical);
+  const s = curSnap(), vals = edgeValues();
+  ctx.lineCap = "round";
+  if (vals) {
+    let m = 1e-12;
+    for (const M of vals) if (M) for (const row of M) for (const v of row) m = Math.max(m, Math.abs(v));
+    vals.forEach((M, l) => {
+      if (!M) return;
+      const keep = keptEdges(M);
+      M.forEach((row, i) => row.forEach((v, j) => {
+        if (keep && !keep[i][j]) return;
+        const [x1, y1] = G.pos[l][i], [x2, y2] = G.pos[l + 1][j], a = Math.abs(v) / m;
+        if (a < 0.02 && !keep) return;
+        ctx.strokeStyle = v >= 0 ? "rgba(8,119,189," : "rgba(245,147,34,";
+        ctx.strokeStyle += (0.15 + 0.85 * a).toFixed(2) + ")";
+        ctx.lineWidth = 0.4 + 4 * a;
+        ctx.beginPath(); ctx.moveTo(x1, y1);
+        if (!vertical) { const xm = (x1 + x2) / 2; ctx.bezierCurveTo(xm, y1, xm, y2, x2, y2); }
+        else { const ym = (y1 + y2) / 2; ctx.bezierCurveTo(x1, ym, x2, ym, x2, y2); }
+        ctx.stroke();
+      }));
+    });
+    if (UI.edge === "g" && vals.every((M) => !M)) {
+      ctx.fillStyle = css("--faint"); ctx.font = "13px system-ui"; ctx.textAlign = "center";
+      ctx.fillText("No gradients logged: pass grads=[...] or a model whose layers store dW.", w / 2, h / 2);
+    }
+  }
+  const r = Math.max(3, Math.min(8, (vertical ? (w - 30) : (h - 70)) / (maxN * 2.6)));
+  G.r = r;
+  G.pos.forEach((col, c) => {
+    col.forEach(([x, y], j) => {
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = nodeFill(c, j, s); ctx.fill();
+      const dead = c > 0 && s && s.nodes[c - 1] && s.nodes[c - 1].frac[j] === 0;
+      ctx.lineWidth = dead ? 2.4 : (UI.selected && UI.selected.c === c && UI.selected.j === j ? 3 : 1);
+      ctx.strokeStyle = dead ? css("--bad") : (UI.selected && UI.selected.c === c && UI.selected.j === j ? css("--ink") : css("--faint"));
+      ctx.stroke();
+    });
+    ctx.fillStyle = css("--muted"); ctx.font = "12px system-ui";
+    const [x0, y0] = col[0] || [0, 0];
+    if (!vertical) { ctx.textAlign = "center"; ctx.fillText(layerLabel(c), x0, 18); }
+    else { ctx.textAlign = "left"; ctx.fillText(layerLabel(c), 8, y0 - r - 8); }
+  });
+}
+function hitNode(ev) {
+  const cv = $("graph"), rect = cv.getBoundingClientRect(), x = ev.clientX - rect.left, y = ev.clientY - rect.top;
+  let best = null, bd = 1e9;
+  G.pos.forEach((col, c) => col.forEach(([px, py], j) => { const d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; best = { c, j }; } }));
+  return bd <= Math.max(12, G.r + 6) ? best : null;
+}
+$("graph").addEventListener("mousemove", (ev) => {
+  const hn = D.structure && hitNode(ev);
+  if (!hn) { hideTip(); $("graph").style.cursor = "default"; return; }
+  $("graph").style.cursor = "pointer";
+  const s = curSnap(), L = D.structure.layers, c = hn.c, j = hn.j;
+  if (c === 0) { showTip(ev.clientX, ev.clientY, `input feature ${L[0].shown_in[j]}`); return; }
+  const nd = s && s.nodes[c - 1], b = s && s.B[c - 1];
+  showTip(ev.clientX, ev.clientY, `<b>${c === L.length ? "output" : "layer " + c}</b> · neuron ${L[c - 1].shown_out[j]}<br>` +
+    (nd ? `mean a = ${fmt(nd.mean[j])} · active ${Math.round(nd.frac[j] * 100)}%<br>` : "") +
+    (b ? `bias b = ${fmt(b[j])}` : "") + "<br><i>click to inspect</i>");
+});
+$("graph").addEventListener("mouseleave", hideTip);
+$("graph").addEventListener("click", (ev) => {
+  const hn = D.structure && hitNode(ev);
+  UI.selected = hn && hn.c > 0 ? hn : null; hideTip(); render();
+});
+
+// ======================================================================= neuron inspector
+function drawInspector() {
+  const el = $("inspector"), sel = UI.selected, s = curSnap();
+  if (!sel || !s || !D.structure) { el.classList.remove("open"); el.innerHTML = ""; return; }
+  const L = D.structure.layers, l = sel.c - 1, j = sel.j, lay = L[l], p = prevSnap();
+  const W = s.W[l], Gm = s.G[l], b = s.B[l] ? s.B[l][j] : 0, prevNodes = l > 0 ? s.nodes[l - 1] : null, nd = s.nodes[l];
+  const rows = W.map((row, i) => {
+    const a = prevNodes ? prevNodes.mean[i] : null, w = row[j];
+    return { i: lay.shown_in[i], w, a, wa: a === null ? null : w * a, g: Gm ? Gm[i][j] : null,
+             dw: p && p.W[l] ? w - p.W[l][i][j] : null };
+  });
+  rows.sort((x, y) => Math.abs(y.wa ?? y.w) - Math.abs(x.wa ?? x.w));
+  const partial = lay.shown_in.length < lay.in;
+  const zbar = prevNodes ? rows.reduce((acc, r) => acc + r.wa, 0) + b : null;
+  const actName = lay.act || "linear";
+  el.innerHTML = `<h3>${sel.c === L.length ? "Output" : "Layer " + sel.c} · neuron ${lay.shown_out[j]} <span class="pill">${actName}</span>
+    <button id="closeInsp" style="float:right;min-height:28px;padding:2px 10px">close</button></h3>
+    <div class="eq">z<sub>j</sub> = Σ<sub>i</sub> w<sub>ij</sub> a<sub>i</sub> + b<sub>j</sub> ${prevNodes ? `≈ Σ w·ā + b = <b>${fmt(zbar)}</b>` : ""}
+      &nbsp;→&nbsp; a<sub>j</sub> = ${actName}(z<sub>j</sub>)${nd ? `; logged mean ā<sub>j</sub> = <b>${fmt(nd.mean[j])}</b>, active ${Math.round(nd.frac[j] * 100)}%` : ""}</div>
+    <div class="eq">∂L/∂w<sub>ij</sub> = mean<sub>n</sub>(δ<sub>j</sub> · a<sub>i</sub>)&nbsp; and SGD does w<sub>ij</sub> ← w<sub>ij</sub> − η ∂L/∂w<sub>ij</sub></div>
+    <div style="color:var(--muted);font-size:12.5px">Bias b = ${fmt(b)}${s.GB[l] ? `, ∂L/∂b = ${fmt(s.GB[l][j])}` : ""}.
+      ${prevNodes ? "ā<sub>i</sub> is the mean activation of input neuron i on the logged batch." : "This layer's inputs are the network inputs; their values are not logged."}
+      ${partial ? ` Sum over the ${lay.shown_in.length} drawn inputs of ${lay.in}.` : ""}
+      ${actName !== "linear" && prevNodes ? " For a nonlinear f the mean of f(z) is not f(mean z), so compare the two numbers only roughly." : ""}</div>
+    <table><thead><tr><th>input i</th><th>w<sub>ij</sub></th><th>ā<sub>i</sub></th><th>w·ā</th><th>∂L/∂w</th><th>Δw since last</th></tr></thead>
+    <tbody>${rows.slice(0, 10).map((r) => `<tr><td>${r.i}</td><td>${fmt(r.w)}</td><td>${fmt(r.a)}</td><td>${fmt(r.wa)}</td>
+      <td>${fmt(r.g)}</td><td>${fmt(r.dw)}</td></tr>`).join("")}</tbody></table>
+    <div style="color:var(--faint);font-size:12px">Showing the ${Math.min(10, rows.length)} strongest of ${rows.length} drawn inputs.</div>`;
+  el.classList.add("open");
+  $("closeInsp").onclick = () => { UI.selected = null; render(); };
+}
+
+// ======================================================================= loss & metrics
+function seriesData() {
+  const out = {};
+  for (const r of D.records) for (const [k, v] of Object.entries(r.scalars)) {
+    if (v === null || !isFinite(v)) continue;
+    (out[k] = out[k] || []).push([r.step, v]);
+  }
+  return out;
+}
+function drawLoss() {
+  const cv = $("loss"), { ctx, w, h } = setupCanvas(cv, 240), S = seriesData(), names = Object.keys(S);
+  const leg = $("lossLegend");
+  if (leg.dataset.names !== names.join("|")) {
+    leg.dataset.names = names.join("|");
+    leg.innerHTML = names.map((n, k) => `<button data-n="${n}"><span class="sw" style="background:${k ? SERIES[k % SERIES.length] : css("--ink")}"></span>${n}</button>`).join("");
+    leg.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      UI.hidden.has(b.dataset.n) ? UI.hidden.delete(b.dataset.n) : UI.hidden.add(b.dataset.n);
+      b.classList.toggle("off"); render();
+    }));
+  }
+  if (!names.length) { ctx.fillStyle = css("--faint"); ctx.font = "13px system-ui"; ctx.textAlign = "center"; ctx.fillText("waiting for scope.log(..., loss=...)", w / 2, h / 2); return; }
+  const shown = names.filter((n) => !UI.hidden.has(n));
+  const all = shown.flatMap((n) => S[n]);
+  if (!all.length) return;
+  const useLog = UI.logScale && all.every(([, v]) => v > 0);
+  const f = useLog ? Math.log10 : (v) => v;
+  let lo = Math.min(...all.map(([, v]) => f(v))), hi = Math.max(...all.map(([, v]) => f(v)));
+  if (hi - lo < 1e-9) { lo -= 0.5; hi += 0.5; }
+  const s0 = Math.min(...all.map(([s]) => s)), s1 = Math.max(s0 + 1, ...all.map(([s]) => s));
+  const P = { l: 44, r: 10, t: 8, b: 22 };
+  const X = (s) => P.l + (w - P.l - P.r) * (s - s0) / (s1 - s0), Y = (v) => P.t + (h - P.t - P.b) * (1 - (f(v) - lo) / (hi - lo));
+  ctx.strokeStyle = css("--line"); ctx.fillStyle = css("--faint"); ctx.font = "11px system-ui"; ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) {
+    const yv = lo + (hi - lo) * k / 4, y = P.t + (h - P.t - P.b) * (1 - k / 4);
+    ctx.beginPath(); ctx.moveTo(P.l, y); ctx.lineTo(w - P.r, y); ctx.stroke();
+    ctx.textAlign = "right"; ctx.fillText(fmt(useLog ? 10 ** yv : yv, 3), P.l - 4, y + 4);
+  }
+  ctx.textAlign = "left"; ctx.fillText(s0, P.l, h - 6); ctx.textAlign = "right"; ctx.fillText(s1, w - P.r, h - 6);
+  names.forEach((n, k) => {
+    if (UI.hidden.has(n)) return;
+    ctx.strokeStyle = k ? SERIES[k % SERIES.length] : css("--ink"); ctx.lineWidth = 1.8; ctx.beginPath();
+    S[n].forEach(([s, v], i) => (i ? ctx.lineTo(X(s), Y(v)) : ctx.moveTo(X(s), Y(v)))); ctx.stroke();
+  });
+  const cs = curSnap();
+  if (cs) { ctx.strokeStyle = css("--warn"); ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(X(cs.step), P.t); ctx.lineTo(X(cs.step), h - P.b); ctx.stroke(); ctx.setLineDash([]); }
+  cv.onmousemove = (ev) => {
+    const rect = cv.getBoundingClientRect(), s = s0 + (ev.clientX - rect.left - P.l) / (w - P.l - P.r) * (s1 - s0);
+    let rec = null, bd = Infinity;
+    for (const r of D.records) { const d = Math.abs(r.step - s); if (d < bd) { bd = d; rec = r; } }
+    if (!rec) return;
+    showTip(ev.clientX, ev.clientY, `step <b>${rec.step}</b><br>` + Object.entries(rec.scalars).map(([k, v]) => `${k}: ${fmt(v, 5)}`).join("<br>"));
+  };
+  cv.onmouseleave = hideTip;
+}
+
+// ======================================================================= insights feed
+function drawFeed() {
+  const ul = $("feed");
+  $("feedEmpty").style.display = D.insights.length ? "none" : "";
+  if (ul.dataset.n === String(D.insights.length)) return;
+  ul.dataset.n = D.insights.length;
+  ul.innerHTML = D.insights.slice().reverse().map((ins, k) =>
+    `<li class="${ins.level}" data-k="${D.insights.length - 1 - k}"><span class="badge">step ${ins.step}</span>${ins.message}</li>`).join("");
+  ul.querySelectorAll("li").forEach((li) => li.addEventListener("click", () => {
+    const ins = D.insights[+li.dataset.k];
+    let best = 0, bd = Infinity;
+    D.snapshots.forEach((s, i) => { const d = Math.abs(s.step - ins.step); if (d < bd) { bd = d; best = i; } });
+    UI.cur = best; UI.follow = false; $("follow").checked = false; render();
+    const card = $({ loss: "card-loss", health: "card-health", activations: "card-acts", graph: "card-graph" }[ins.panel] || "card-flow");
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash");
+  }));
+}
+
+// ======================================================================= gradient flow
+function drawFlow() {
+  const cv = $("flow"), { ctx, w, h } = setupCanvas(cv, 200), rec = curRecord();
+  if (!rec || !D.structure) return;
+  const g = rec.layers.map((l) => l.g_mean_abs), d = rec.layers.map((l) => l.delta_mean_abs);
+  if (g.every((v) => v === null || v === undefined)) {
+    ctx.fillStyle = css("--faint"); ctx.font = "13px system-ui"; ctx.textAlign = "center";
+    ctx.fillText("No gradients logged yet (grads=[...] or layers with dW).", w / 2, h / 2); return;
+  }
+  const allv = D.records.flatMap((r) => r.layers.map((l) => l.g_mean_abs)).filter((v) => v > 0);
+  const lo = Math.log10(Math.min(...allv)) - 0.3, hi = Math.log10(Math.max(...allv)) + 0.3;
+  const n = g.length, P = { l: 44, r: 8, t: 10, b: 34 }, bw = (w - P.l - P.r) / n;
+  const Y = (v) => P.t + (h - P.t - P.b) * (1 - (Math.log10(Math.max(v, 1e-30)) - lo) / (hi - lo));
+  ctx.strokeStyle = css("--line"); ctx.fillStyle = css("--faint"); ctx.font = "11px system-ui";
+  for (let e = Math.ceil(lo); e <= Math.floor(hi); e++) {
+    const y = Y(10 ** e); ctx.beginPath(); ctx.moveTo(P.l, y); ctx.lineTo(w - P.r, y); ctx.stroke();
+    ctx.textAlign = "right"; ctx.fillText(`1e${e}`, P.l - 4, y + 4);
+  }
+  g.forEach((v, k) => {
+    const x = P.l + bw * k + bw * 0.18, bwid = bw * 0.64;
+    if (v > 0) { ctx.fillStyle = "#0877bd"; ctx.fillRect(x, Y(v), bwid, h - P.b - Y(v)); }
+    if (d[k] > 0) { ctx.fillStyle = css("--neg"); ctx.fillRect(x + bwid * 0.35, Y(d[k]), bwid * 0.3, h - P.b - Y(d[k])); }
+    ctx.fillStyle = css("--muted"); ctx.textAlign = "center";
+    const act = D.structure.layers[k] && D.structure.layers[k].act;
+    ctx.fillText(`L${k + 1}${act ? " " + act : ""}`, x + bwid / 2, h - P.b + 14);
+    ctx.fillStyle = css("--ink"); ctx.fillText(fmt(v), x + bwid / 2, Math.max(P.t + 10, Y(v) - 4));
+  });
+  if (g[0] > 0 && g[n - 1] > 0) {
+    ctx.fillStyle = css("--muted"); ctx.textAlign = "left";
+    ctx.fillText(`first/last layer ratio: ${fmt(g[0] / g[n - 1])}`, P.l, h - 4);
+  }
+}
+
+// ======================================================================= layer health
+function spark(cv, pts, curStep, logY, color) {
+  const { ctx, w, h } = setupCanvas(cv, 46);
+  const vals = pts.filter(([, v]) => v !== null && v !== undefined && (!logY || v > 0));
+  if (vals.length < 2) { ctx.fillStyle = css("--faint"); ctx.font = "11px system-ui"; ctx.fillText("–", 4, 28); return; }
+  const f = logY ? (v) => Math.log10(v) : (v) => v;
+  let lo = Math.min(...vals.map(([, v]) => f(v))), hi = Math.max(...vals.map(([, v]) => f(v)));
+  if (hi - lo < 1e-9) { lo -= 0.5; hi += 0.5; }
+  const s0 = vals[0][0], s1 = Math.max(s0 + 1, vals[vals.length - 1][0]);
+  const X = (s) => 2 + (w - 4) * (s - s0) / (s1 - s0), Y = (v) => 4 + (h - 16) * (1 - (f(v) - lo) / (hi - lo));
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
+  vals.forEach(([s, v], i) => (i ? ctx.lineTo(X(s), Y(v)) : ctx.moveTo(X(s), Y(v)))); ctx.stroke();
+  let cur = vals[vals.length - 1];
+  for (const p of vals) if (p[0] <= curStep) cur = p;
+  ctx.fillStyle = css("--warn"); ctx.beginPath(); ctx.arc(X(cur[0]), Y(cur[1]), 3, 0, 2 * Math.PI); ctx.fill();
+  ctx.fillStyle = css("--ink"); ctx.font = "11px system-ui"; ctx.textAlign = "right"; ctx.fillText(fmt(cur[1]), w - 2, h - 2);
+}
+function hist(cv, H, color) {
+  const { ctx, w, h } = setupCanvas(cv, 50);
+  if (!H) { ctx.fillStyle = css("--faint"); ctx.font = "11px system-ui"; ctx.fillText("–", 4, 28); return; }
+  const m = Math.max(1, ...H.counts), bw = w / H.counts.length;
+  ctx.fillStyle = color;
+  H.counts.forEach((c, k) => { const bh = (h - 14) * c / m; ctx.fillRect(k * bw, h - 14 - bh, Math.max(1, bw - 1), bh); });
+  ctx.fillStyle = css("--faint"); ctx.font = "10px system-ui";
+  ctx.textAlign = "left"; ctx.fillText(fmt(H.lo), 0, h - 2); ctx.textAlign = "right"; ctx.fillText(fmt(H.hi), w, h - 2);
+}
+function drawHealth() {
+  const box = $("health");
+  if (!D.structure) { box.innerHTML = '<div class="empty">waiting for data</div>'; return; }
+  const L = D.structure.layers, key = D.structure.signature;
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.innerHTML = `<div class="health-row health-head"><div></div><div>‖W‖</div><div>‖∇W‖</div><div>update ratio</div></div>` +
+      L.map((l, k) => `<div class="health-row"><div class="nm"><b>layer ${k + 1}</b>${l.in}→${l.out}</div>
+        <canvas data-k="${k}" data-m="w_norm"></canvas><canvas data-k="${k}" data-m="g_norm"></canvas><canvas data-k="${k}" data-m="update_ratio"></canvas></div>
+        <div class="hist-row"><div class="nm health-head">W · ∇W now</div><canvas data-h="${k}" data-t="w"></canvas><canvas data-h="${k}" data-t="g"></canvas></div>`).join("");
+  }
+  const cs = curSnap(), cur = cs ? cs.step : Infinity;
+  box.querySelectorAll("canvas[data-m]").forEach((cv) => {
+    const k = +cv.dataset.k, m = cv.dataset.m;
+    spark(cv, D.records.map((r) => [r.step, r.layers[k] ? r.layers[k][m] : null]), cur, m !== "w_norm",
+          m === "w_norm" ? "#0877bd" : m === "g_norm" ? "#f59322" : "#2ca02c");
+  });
+  box.querySelectorAll("canvas[data-h]").forEach((cv) => {
+    const k = +cv.dataset.h, t = cv.dataset.t;
+    hist(cv, cs && cs.hist[k] ? cs.hist[k][t] : null, t === "w" ? "#0877bd" : "#f59322");
+  });
+}
+
+// ======================================================================= activations
+function drawActs() {
+  const box = $("acts"), s = curSnap();
+  if (!D.structure || !s) { box.innerHTML = '<div class="empty">waiting for data</div>'; return; }
+  const L = D.structure.layers, rows = L.map((l, k) => ({ l, k, nd: s.nodes[k], rec: curRecord() && curRecord().layers[k] })).filter((x) => x.nd);
+  if (!rows.length) { box.innerHTML = '<div class="empty">No activations logged. They are read from layers that cache their input (e.g. <code>Linear.x</code>) or from <code>activations=[...]</code>.</div>'; box.dataset.key = ""; return; }
+  const key = D.structure.signature + rows.length;
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.innerHTML = rows.map((r) => `<div class="act-row"><div class="nm" id="actnm${r.k}"></div><canvas data-a="${r.k}"></canvas></div>`).join("");
+  }
+  rows.forEach(({ l, k, nd, rec }) => {
+    const dead = rec && rec.dead ? rec.dead : 0, kind = rec && rec.dead_kind === "saturated" ? "saturated" : "dead";
+    $("actnm" + k).innerHTML = `<b>layer ${k + 1}</b> · ${l.act || "linear"} · ${l.out} units` +
+      (rec && rec.frac_active !== undefined && rec.frac_active !== null ? ` · ${Math.round(rec.frac_active * 100)}% active on average` : "") +
+      (dead ? ` · <span class="dead">${dead} ${kind}</span>` : "");
+    const cv = box.querySelector(`canvas[data-a="${k}"]`), { ctx, w } = setupCanvas(cv, 38), n = nd.mean.length, cw = w / n;
+    const m = Math.max(1e-9, ...nd.mean.map(Math.abs));
+    nd.mean.forEach((v, j) => {
+      ctx.fillStyle = rgbOf(v / m); ctx.fillRect(j * cw, 0, Math.max(1, cw - 1), 17);
+      ctx.fillStyle = nd.frac[j] === 0 ? css("--bad") : rgbOf(nd.frac[j]); ctx.fillRect(j * cw, 19, Math.max(1, cw - 1), 17);
+    });
+    cv.onmousemove = (ev) => {
+      const j = Math.min(n - 1, Math.floor((ev.clientX - cv.getBoundingClientRect().left) / cw));
+      showTip(ev.clientX, ev.clientY, `layer ${k + 1} · neuron ${l.shown_out[j]}<br>mean a = ${fmt(nd.mean[j])} ± ${fmt(nd.std[j])}<br>active ${Math.round(nd.frac[j] * 100)}%`);
+    };
+    cv.onmouseleave = hideTip;
+  });
+}
+
+// ======================================================================= latent scatter
+function drawLatent() {
+  const cv = $("latent");
+  let s = null;
+  for (let i = Math.min(UI.cur, D.snapshots.length - 1); i >= 0; i--) if (D.snapshots[i].latent) { s = D.snapshots[i]; break; }
+  $("latentEmpty").style.display = s ? "none" : "";
+  cv.style.display = s ? "" : "none";
+  if (!s) return;
+  const { ctx, w, h } = setupCanvas(cv, Math.min(420, Math.max(260, cv.parentElement.clientWidth * 0.75)));
+  const { xy, labels, explained, dim } = s.latent, P = { l: 34, r: 10, t: 10, b: 30 };
+  const xs = xy.map((p) => p[0]), ys = xy.map((p) => p[1]);
+  const pad = (a, b) => { const d = (b - a) || 1; return [a - 0.06 * d, b + 0.06 * d]; };
+  const [x0, x1] = pad(Math.min(...xs), Math.max(...xs)), [y0, y1] = pad(Math.min(...ys), Math.max(...ys));
+  const X = (v) => P.l + (w - P.l - P.r) * (v - x0) / (x1 - x0), Y = (v) => P.t + (h - P.t - P.b) * (1 - (v - y0) / (y1 - y0));
+  const cats = labels && labels.every((v) => Number.isInteger(v) || typeof v === "boolean") && new Set(labels).size <= 12;
+  let lo = 0, hi = 1;
+  if (labels && !cats) { lo = Math.min(...labels); hi = Math.max(...labels); }
+  ctx.strokeStyle = css("--line"); ctx.strokeRect(P.l, P.t, w - P.l - P.r, h - P.t - P.b);
+  xy.forEach(([x, y], i) => {
+    ctx.beginPath(); ctx.arc(X(x), Y(y), 3.2, 0, 2 * Math.PI);
+    ctx.fillStyle = !labels ? css("--muted") : cats ? PALETTE[(+labels[i]) % PALETTE.length] : rgbOf(2 * (labels[i] - lo) / ((hi - lo) || 1) - 1);
+    ctx.globalAlpha = 0.8; ctx.fill(); ctx.globalAlpha = 1;
+  });
+  ctx.fillStyle = css("--muted"); ctx.font = "12px system-ui"; ctx.textAlign = "center";
+  const ax = explained ? [`PC1 (${Math.round(explained[0] * 100)}% var)`, `PC2 (${Math.round(explained[1] * 100)}% var)`] : ["z1", "z2"];
+  ctx.fillText(`${ax[0]} · ${dim}-D features · step ${s.step}`, P.l + (w - P.l - P.r) / 2, h - 8);
+  ctx.save(); ctx.translate(12, P.t + (h - P.t - P.b) / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(ax[1], 0, 0); ctx.restore();
+  if (cats) {
+    const uniq = [...new Set(labels)].sort((a, b) => a - b);
+    ctx.textAlign = "left";
+    uniq.forEach((u, k) => { ctx.fillStyle = PALETTE[(+u) % PALETTE.length]; ctx.fillRect(P.l + 8, P.t + 8 + k * 16, 10, 10);
+      ctx.fillStyle = css("--ink"); ctx.fillText(`class ${+u}`, P.l + 24, P.t + 17 + k * 16); });
+  }
+}
+
+// ======================================================================= exports
+function download(href, name) {
+  const a = document.createElement("a"); a.href = href; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+function safeName() { return (D.name || "run").replace(/[^\w.-]+/g, "_"); }
+function withBackground(cv) {
+  const out = document.createElement("canvas"); out.width = cv.width; out.height = cv.height;
+  const ctx = out.getContext("2d"); ctx.fillStyle = css("--card"); ctx.fillRect(0, 0, out.width, out.height); ctx.drawImage(cv, 0, 0);
+  return out;
+}
+function networkSVG() {
+  const s = curSnap(); if (!s || !D.structure) return null;
+  const Lc = D.structure.layers.length + 1, maxN = Math.max(D.structure.layers[0].shown_in.length, ...D.structure.layers.map((l) => l.shown_out.length));
+  const w = Math.max(700, Lc * 190), h = Math.max(320, Math.min(900, maxN * 26 + 90)), pos = graphLayout(w, h, false), vals = edgeValues();
+  let m = 1e-12; for (const M of vals) if (M) for (const row of M) for (const v of row) m = Math.max(m, Math.abs(v));
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h + 30}" viewBox="0 0 ${w} ${h + 30}" font-family="Helvetica, Arial, sans-serif" font-size="12">`,
+    `<rect width="100%" height="100%" fill="${css("--card")}"/>`,
+    `<text x="12" y="${h + 22}" fill="${css("--muted")}">${D.name} · step ${s.step} · edges: ${{ w: "weights", g: "gradients", u: "updates" }[UI.edge]}</text>`];
+  vals.forEach((M, l) => M && M.forEach((row, i) => row.forEach((v, j) => {
+    const [x1, y1] = pos[l][i], [x2, y2] = pos[l + 1][j], a = Math.abs(v) / m, xm = (x1 + x2) / 2;
+    if (a < 0.02) return;
+    out.push(`<path d="M${x1.toFixed(1)},${y1.toFixed(1)} C${xm.toFixed(1)},${y1.toFixed(1)} ${xm.toFixed(1)},${y2.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" fill="none" stroke="${v >= 0 ? "#0877bd" : "#f59322"}" stroke-opacity="${(0.15 + 0.85 * a).toFixed(2)}" stroke-width="${(0.4 + 4 * a).toFixed(2)}"/>`);
+  })));
+  pos.forEach((col, c) => {
+    col.forEach(([x, y], j) => out.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="${nodeFill(c, j, s)}" stroke="${css("--faint")}"/>`));
+    out.push(`<text x="${col[0][0].toFixed(1)}" y="18" text-anchor="middle" fill="${css("--muted")}">${layerLabel(c)}</text>`);
+  });
+  out.push("</svg>");
+  return out.join("\n");
+}
+function dashboardPNG() {
+  const cards = [...document.querySelectorAll(".card")].filter((c) => c.querySelector("canvas") && c.querySelectorAll("canvas").length);
+  const W = 1600, colW = 780, dpr = window.devicePixelRatio || 1, parts = [];
+  for (const card of cards) {
+    const cvs = [...card.querySelectorAll("canvas")].filter((c) => c.width && c.offsetParent !== null);
+    if (!cvs.length) continue;
+    const full = card.classList.contains("wide"), cw = full ? W - 40 : colW;
+    const hs = cvs.map((c) => c.height / c.width * cw);
+    parts.push({ title: card.dataset.title, cvs, hs, full, cw, h: 30 + hs.reduce((a, b) => a + b + 6, 0) });
+  }
+  let x = 20, y = 60, rowH = 0; const placed = [];
+  for (const p of parts) {
+    if (p.full || x + p.cw > W - 20) { if (x > 20) { y += rowH + 16; x = 20; rowH = 0; } }
+    placed.push({ ...p, x, y }); rowH = Math.max(rowH, p.h);
+    if (p.full) { y += p.h + 16; x = 20; rowH = 0; } else x += p.cw + 20;
+  }
+  const H = y + rowH + 20, out = document.createElement("canvas"); out.width = W; out.height = H;
+  const ctx = out.getContext("2d"); ctx.fillStyle = css("--bg"); ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = css("--ink"); ctx.font = "bold 22px system-ui"; ctx.fillText(`nnscope · ${D.name} · step ${$("stepNow").textContent}`, 20, 38);
+  for (const p of placed) {
+    ctx.fillStyle = css("--card"); ctx.fillRect(p.x - 6, p.y - 6, p.cw + 12, p.h + 6);
+    ctx.fillStyle = css("--muted"); ctx.font = "600 14px system-ui"; ctx.fillText(p.title.toUpperCase(), p.x, p.y + 16);
+    let yy = p.y + 28;
+    p.cvs.forEach((c, k) => { ctx.drawImage(c, p.x, yy, p.cw, p.hs[k]); yy += p.hs[k] + 6; });
+  }
+  return out;
+}
+function doExport(kind) {
+  $("exportMenu").classList.remove("open");
+  const base = `${safeName()}_step${$("stepNow").textContent}`;
+  if (kind === "net-svg") { const svg = networkSVG(); if (svg) download(URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" })), base + "_network.svg"); }
+  else if (kind === "net-png") download(withBackground($("graph")).toDataURL("image/png"), base + "_network.png");
+  else if (kind === "loss-png") download(withBackground($("loss")).toDataURL("image/png"), base + "_loss.png");
+  else if (kind === "dash-png") download(dashboardPNG().toDataURL("image/png"), base + "_dashboard.png");
+  else if (kind === "json") download(URL.createObjectURL(new Blob([JSON.stringify(D)], { type: "application/json" })), safeName() + ".json");
+}
+
+boot();
+</script>
+</body>
+</html>

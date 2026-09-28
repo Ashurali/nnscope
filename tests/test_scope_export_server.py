@@ -110,3 +110,10 @@ def test_insights_fire_once_and_not_on_healthy_runs():
     out = [i for s in range(40) for i in e.update(_rec(s, [0.01] * 3, 1e-3, loss=1 / (s + 1),
                                                    test=0.5 + abs(s - 10) * 0.05), STRUCT)]
     assert [i["kind"] for i in out] == ["overfit"]
+
+
+def test_insight_hysteresis_no_flapping_near_threshold():
+    e = InsightEngine()
+    ratios = [1.2e3 if s % 7 else 0.8e3 for s in range(60)]           # hovers around the 1e3 threshold
+    kinds = [i["kind"] for s, r in enumerate(ratios) for i in e.update(_rec(s, [0.01 / r, 1e-3, 0.01], 1e-3), STRUCT)]
+    assert kinds.count("vanishing") == 1

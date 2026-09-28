@@ -15,17 +15,30 @@ def _fmt_ratio(x: float) -> str:
 
 
 class InsightEngine:
-    def __init__(self, patience: int = 3):
+    def __init__(self, patience: int = 3, warmup: int = 5):
         self.patience = patience            # a condition must hold for this many logs in a row before it is reported
-        self.active: Dict[str, int] = {}    # key → consecutive count
+        self.warmup = warmup                # rules about learning speed wait this many logs (early steps are special)
+        self.active: Dict[str, int] = {}    # key → consecutive logs the condition held
+        self.clear: Dict[str, int] = {}     # key → consecutive logs it has been clear (re-arm needs several)
         self.reported: set = set()
         self.best_test: Optional[tuple] = None   # (loss, step, train_loss at that step)
+        self.n = 0
 
-    def _check(self, key: str, cond: bool, step, level: str, panel: str, message: str, out: List[dict], immediate=False):
+    def _check(self, key: str, cond: bool, step, level: str, panel: str, message: str, out: List[dict], immediate=False,
+               clear: Optional[bool] = None):
+        """Report `key` once when `cond` holds; re-arm only after `clear` (default: not cond) held for 3×patience logs.
+
+        The separate clear condition and the re-arm delay (hysteresis) stop a value hovering at a threshold from
+        re-firing the same hint over and over.
+        """
         if not cond:
             self.active.pop(key, None)
-            self.reported.discard(key)
+            is_clear = (not cond) if clear is None else clear
+            self.clear[key] = self.clear.get(key, 0) + 1 if is_clear else 0
+            if self.clear[key] >= 3 * self.patience:
+                self.reported.discard(key)
             return
+        self.clear[key] = 0
         self.active[key] = self.active.get(key, 0) + 1
         if key not in self.reported and (immediate or self.active[key] >= self.patience):
             self.reported.add(key)
@@ -33,6 +46,7 @@ class InsightEngine:
 
     def update(self, record: dict, structure: dict) -> List[dict]:
         out: List[dict] = []
+        self.n += 1
         step, layers, scalars = record["step"], record["layers"], record["scalars"]
         names = [f"layer {k + 1}" for k in range(len(layers))]
 
@@ -44,20 +58,21 @@ class InsightEngine:
         g = [l.get("g_mean_abs") for l in layers]
         if len(g) >= 2 and all(v is not None for v in g) and g[-1] and g[-1] > 0:
             ratio = g[-1] / max(g[0], 1e-30)
-            self._check("vanishing", ratio > 1e3, step, "warn", "health",
+            self._check("vanishing", ratio > 1e3, step, "warn", "health", clear=ratio < 3e2, message=
                         f"Vanishing gradients: layer 1 receives {_fmt_ratio(ratio)}× smaller gradients than layer {len(g)}. "
                         "Early layers barely learn. Saturating activations (sigmoid/tanh) or poor initialisation are the "
-                        "usual causes; try ReLU/tanh or He/Xavier init.", out)
+                        "usual causes; try ReLU/tanh or He/Xavier init.", out=out)
             self._check("exploding", max(v for v in g) > 1e2, step, "warn", "health",
                         "Exploding gradients: mean |∂L/∂W| is above 100. Expect unstable jumps in the loss; lower the learning "
                         "rate or clip gradients.", out)
 
         ratios = [l.get("update_ratio") for l in layers if l.get("update_ratio") is not None]
-        if ratios:
+        if ratios and self.n > self.warmup:
             med = float(np.median(ratios))
-            self._check("lr_high", med > 0.05, step, "warn", "health",
-                        f"Weights change by ~{med:.0%} per logged step (update ratio ‖ΔW‖/‖W‖). A healthy ratio is about 0.1%; "
-                        "the learning rate is probably too high.", out)
+            self._check("lr_high", med > 0.1, step, "warn", "health", clear=med < 0.03, message=
+                        f"Weights keep changing by ~{med:.0%} between logs (update ratio ‖ΔW‖/‖W‖). Per single SGD step a "
+                        "healthy ratio is about 0.1%, so even when logging once per epoch this is high: the learning rate is "
+                        "probably too large (watch for a noisy or rising loss).", out=out)
             self._check("lr_low", med < 1e-6, step, "info", "health",
                         f"Weights barely move (update ratio {med:.1e}). The learning rate may be too small, or training has converged.",
                         out)

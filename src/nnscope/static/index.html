@@ -584,9 +584,11 @@ function drawLoss() {
   }
   if (!names.length) { ctx.fillStyle = css("--faint"); ctx.font = "13px system-ui"; ctx.textAlign = "center"; ctx.fillText("waiting for scope.log(..., loss=...)", w / 2, h / 2); return; }
   const shown = names.filter((n) => !UI.hidden.has(n));
-  const all = shown.flatMap((n) => S[n]);
+  const useLog = UI.logScale && shown.some((n) => S[n].some(([, v]) => v > 0));
+  // On a log scale, points ≤ 0 (e.g. a training error that reaches exactly 0) are skipped instead of forcing linear.
+  const pts = (n) => (useLog ? S[n].filter(([, v]) => v > 0) : S[n]);
+  const all = shown.flatMap(pts);
   if (!all.length) return;
-  const useLog = UI.logScale && all.every(([, v]) => v > 0);
   const f = useLog ? Math.log10 : (v) => v;
   let lo = Math.min(...all.map(([, v]) => f(v))), hi = Math.max(...all.map(([, v]) => f(v)));
   if (hi - lo < 1e-9) { lo -= 0.5; hi += 0.5; }
@@ -603,7 +605,7 @@ function drawLoss() {
   names.forEach((n, k) => {
     if (UI.hidden.has(n)) return;
     ctx.strokeStyle = k ? SERIES[k % SERIES.length] : css("--ink"); ctx.lineWidth = 1.8; ctx.beginPath();
-    S[n].forEach(([s, v], i) => (i ? ctx.lineTo(X(s), Y(v)) : ctx.moveTo(X(s), Y(v)))); ctx.stroke();
+    pts(n).forEach(([s, v], i) => (i ? ctx.lineTo(X(s), Y(v)) : ctx.moveTo(X(s), Y(v)))); ctx.stroke();
   });
   const cs = curSnap();
   if (cs) { ctx.strokeStyle = css("--warn"); ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(X(cs.step), P.t); ctx.lineTo(X(cs.step), h - P.b); ctx.stroke(); ctx.setLineDash([]); }
@@ -757,7 +759,7 @@ function drawLatent() {
   cv.style.display = s ? "" : "none";
   if (!s) return;
   const { ctx, w, h } = setupCanvas(cv, Math.min(420, Math.max(260, cv.parentElement.clientWidth * 0.75)));
-  const { xy, labels, explained, dim } = s.latent, P = { l: 34, r: 10, t: 10, b: 30 };
+  const { xy, labels, explained, dim } = s.latent, P = { l: 34, r: 10, t: 22, b: 30 };
   const xs = xy.map((p) => p[0]), ys = xy.map((p) => p[1]);
   const pad = (a, b) => { const d = (b - a) || 1; return [a - 0.06 * d, b + 0.06 * d]; };
   const [x0, x1] = pad(Math.min(...xs), Math.max(...xs)), [y0, y1] = pad(Math.min(...ys), Math.max(...ys));
@@ -775,11 +777,13 @@ function drawLatent() {
   const ax = explained ? [`PC1 (${Math.round(explained[0] * 100)}% var)`, `PC2 (${Math.round(explained[1] * 100)}% var)`] : ["z1", "z2"];
   ctx.fillText(`${ax[0]} · ${dim}-D features · step ${s.step}`, P.l + (w - P.l - P.r) / 2, h - 8);
   ctx.save(); ctx.translate(12, P.t + (h - P.t - P.b) / 2); ctx.rotate(-Math.PI / 2); ctx.fillText(ax[1], 0, 0); ctx.restore();
-  if (cats) {
+  if (cats) {                                      // legend outside the plot area, above it, so it never hides points
     const uniq = [...new Set(labels)].sort((a, b) => a - b);
-    ctx.textAlign = "left";
-    uniq.forEach((u, k) => { ctx.fillStyle = PALETTE[(+u) % PALETTE.length]; ctx.fillRect(P.l + 8, P.t + 8 + k * 16, 10, 10);
-      ctx.fillStyle = css("--ink"); ctx.fillText(`class ${+u}`, P.l + 24, P.t + 17 + k * 16); });
+    ctx.textAlign = "left"; let lx = P.l;
+    uniq.forEach((u) => {
+      ctx.fillStyle = PALETTE[(+u) % PALETTE.length]; ctx.fillRect(lx, 4, 10, 10);
+      ctx.fillStyle = css("--ink"); ctx.fillText(`class ${+u}`, lx + 14, 13); lx += ctx.measureText(`class ${+u}`).width + 30;
+    });
   }
 }
 

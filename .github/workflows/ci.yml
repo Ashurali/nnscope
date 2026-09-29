@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.9", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --dev
+      - run: uv run --dev pytest -q
+      - name: Examples run headless
+        working-directory: examples
+        run: |
+          uv run python 01_quickstart_xor.py --headless --epochs 20
+          uv run python 04_vanishing_gradients.py --headless --epochs 10

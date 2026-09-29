@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1 (2026-09-29)
+
+Fixes found while using nnscope on a real homework (the HW1 companion notebooks).
+
+- `snapshot("x.png")` no longer calls `matplotlib.use("Agg")`. It used to switch the global backend, which silently stopped
+  inline plots from showing in Jupyter afterwards; it now draws on a standalone `Figure` with an Agg canvas.
+- Loss chart: the log scale stays on when a series reaches exactly 0 (e.g. a training error of 0); non-positive points are
+  skipped instead of forcing a linear axis.
+- Latent space: the class legend moved above the plot so it no longer hides points.
+
 ## 0.1.0 (2026-09-29)
 
 First release.

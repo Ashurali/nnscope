@@ -1,6 +1,6 @@
 [project]
 name = "nnscope"
-version = "0.1.0"
+version = "0.1.1"
 description = "Watch your NumPy neural network learn: a live, replayable dashboard for weights, gradients, activations and loss."
 readme = "README.md"
 license = "MIT"

@@ -26,6 +26,12 @@ classifiers = [
 [project.optional-dependencies]
 png = ["matplotlib>=3.5"]
 
+[project.urls]
+Homepage = "https://github.com/Ashurali/nnscope"
+Repository = "https://github.com/Ashurali/nnscope"
+Issues = "https://github.com/Ashurali/nnscope/issues"
+Changelog = "https://github.com/Ashurali/nnscope/blob/master/CHANGELOG.md"
+
 [dependency-groups]
 dev = ["pytest>=7"]
 

@@ -8,7 +8,7 @@ It was built for students implementing neural networks **from scratch** (forward
 who want to *see* what their code does: gradients flowing backwards, ReLUs dying, sigmoids saturating, a hidden layer slowly
 learning to separate the classes.
 
-![nnscope dashboard](docs/dashboard.png)
+![nnscope dashboard](https://raw.githubusercontent.com/Ashurali/nnscope/master/docs/dashboard.png)
 
 - **Zero setup:** depends only on NumPy. The dashboard is one self-contained HTML file served by Python's standard library.
 - **Works with your code:** auto-detects common NumPy model layouts, or pass plain arrays.
@@ -92,11 +92,11 @@ scope.log(step, model=model, loss=loss,
 Use the **timeline** at the bottom (or ← → and space) to replay training. **Export** saves the network (SVG/PNG), the loss curve,
 the whole dashboard (PNG) or the raw run data (JSON).
 
-![deep sigmoid network: vanishing gradients](docs/vanishing.png)
+![deep sigmoid network: vanishing gradients](https://raw.githubusercontent.com/Ashurali/nnscope/master/docs/vanishing.png)
 
 ## Examples
 
-The [`examples/`](examples) folder uses a tiny homework-style NumPy MLP ([`_mlp.py`](examples/_mlp.py)). Run them from that folder;
+The [`examples/`](https://github.com/Ashurali/nnscope/tree/master/examples) folder uses a tiny homework-style NumPy MLP ([`_mlp.py`](https://github.com/Ashurali/nnscope/blob/master/examples/_mlp.py)). Run them from that folder;
 add `--no-open` to skip opening a browser tab, or `--headless` to only write `runs/*.html` and `runs/*.svg`.
 
 | script | story |

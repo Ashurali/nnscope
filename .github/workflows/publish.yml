@@ -1,0 +1,19 @@
+name: Publish to PyPI
+
+# Push a tag like v0.1.0 to build and upload. Uses PyPI "trusted publishing":
+# on pypi.org, add this repository + workflow (publish.yml) + environment (pypi) as a trusted publisher first.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1

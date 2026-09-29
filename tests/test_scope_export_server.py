@@ -117,3 +117,14 @@ def test_insight_hysteresis_no_flapping_near_threshold():
     ratios = [1.2e3 if s % 7 else 0.8e3 for s in range(60)]           # hovers around the 1e3 threshold
     kinds = [i["kind"] for s, r in enumerate(ratios) for i in e.update(_rec(s, [0.01 / r, 1e-3, 0.01], 1e-3), STRUCT)]
     assert kinds.count("vanishing") == 1
+
+
+def test_png_snapshot_does_not_touch_the_matplotlib_backend(tmp_path):
+    import pytest
+    mpl = pytest.importorskip("matplotlib")
+    before = mpl.get_backend()
+    scope = nnscope.Scope("t", live=False)
+    _train(scope, steps=3)
+    out = tmp_path / "net.png"
+    scope.snapshot(str(out))
+    assert out.stat().st_size > 1000 and mpl.get_backend() == before

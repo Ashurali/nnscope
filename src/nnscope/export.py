@@ -134,9 +134,10 @@ def snapshot_image(data: dict, path: str, step: Optional[int] = None) -> str:
     if p.suffix.lower() != ".png":
         raise ValueError("snapshot path must end in .svg or .png")
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        # A standalone Figure + Agg canvas: never touches pyplot's global state or the user's backend
+        # (switching the backend would silently break inline plots in a Jupyter notebook).
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        from matplotlib.figure import Figure
         from matplotlib.patches import PathPatch
         from matplotlib.path import Path as MPath
     except ImportError:
@@ -144,7 +145,9 @@ def snapshot_image(data: dict, path: str, step: Optional[int] = None) -> str:
     structure, snap = data.get("structure"), _pick_snapshot(data, step)
     if structure is None or snap is None:
         raise ValueError("nothing to draw yet: call scope.log(...) at least once")
-    fig, (ax, bx) = plt.subplots(1, 2, figsize=(13, 5.4), gridspec_kw={"width_ratios": [1.7, 1]})
+    fig = Figure(figsize=(13, 5.4))
+    FigureCanvasAgg(fig)
+    ax, bx = fig.subplots(1, 2, gridspec_kw={"width_ratios": [1.7, 1]})
     pos, xs = _layout(structure, 0.0, 1.0, 0.0, 1.0)
     for l, Wl in enumerate(snap["W"]):
         m = max((abs(v) for row in Wl for v in row), default=1.0) or 1.0
@@ -164,5 +167,6 @@ def snapshot_image(data: dict, path: str, step: Optional[int] = None) -> str:
     for name, ser in _loss_series(data).items():
         bx.plot([s for s, _ in ser], [v for _, v in ser], label=name)
     bx.set_xlabel("step"); bx.set_title("loss & metrics"); bx.grid(alpha=0.3); bx.legend()
-    fig.tight_layout(); fig.savefig(p, dpi=150); plt.close(fig)
+    fig.tight_layout()
+    fig.savefig(p, dpi=150)
     return str(p)

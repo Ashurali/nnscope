@@ -33,7 +33,10 @@ Issues = "https://github.com/Ashurali/nnscope/issues"
 Changelog = "https://github.com/Ashurali/nnscope/blob/master/CHANGELOG.md"
 
 [dependency-groups]
-dev = ["pytest>=7"]
+dev = [
+    "matplotlib>=3.9.4",
+    "pytest>=7",
+]
 
 [build-system]
 requires = ["uv_build>=0.12.3,<0.13.0"]

@@ -64,7 +64,8 @@ def layer_numbers(W: np.ndarray, dW: Optional[np.ndarray], prev_W: Optional[np.n
 def activation_numbers(A: Optional[np.ndarray], act: Optional[str]) -> Optional[dict]:
     """Per-neuron statistics of a batch of activations A (batch, units).
 
-    * relu-like: a unit is *active* when its output > 0; a unit never active on the batch is *dead*.
+    * relu-like: a unit is *active* when its output > 0; a unit never active on the batch is *dead* (no gradient flows
+      through it). For leaky_relu such a unit is only *inactive*: it still passes the small gradient α·δ.
     * tanh / sigmoid: a unit is *active* when it is not saturated; one saturated on every sample is flagged *saturated*.
     """
     if A is None:
@@ -79,7 +80,7 @@ def activation_numbers(A: Optional[np.ndarray], act: Optional[str]) -> Optional[
         kind = "saturated"
     else:
         active = A > 0 if act in (None, "relu", "leaky_relu", "elu", "gelu", "swish", "softplus") else np.abs(A) > 1e-8
-        kind = "dead"
+        kind = "inactive" if act == "leaky_relu" else "dead"
     frac = active.mean(axis=0)
     dead = int(np.sum(frac == 0))
     return {

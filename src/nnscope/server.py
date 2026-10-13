@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import queue
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,6 +12,17 @@ from .export import render_page
 
 PUSH_INTERVAL = 0.1      # seconds: batch messages → at most ~10 pushes per second per browser
 HEARTBEAT = 15.0
+
+
+class _QuietServer(ThreadingHTTPServer):
+    """Don't print a traceback when a browser closes a tab or reloads mid-request: that is normal, not an error."""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
 
 
 def _handler_for(scope):
@@ -83,12 +95,11 @@ def start_server(scope, host: str = "127.0.0.1", port: int = 8765):
     last_err = None
     for p in ([0] if port == 0 else list(range(port, port + 20)) + [0]):
         try:
-            server = ThreadingHTTPServer((host, p), handler)
+            server = _QuietServer((host, p), handler)
             break
         except OSError as err:
             last_err = err
     else:
         raise OSError(f"nnscope: no free port found ({last_err})")
-    server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True, name="nnscope-server").start()
     return server, f"http://{host}:{server.server_address[1]}/"

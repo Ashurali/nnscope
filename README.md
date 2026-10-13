@@ -86,7 +86,7 @@ scope.log(step, model=model, loss=loss,
 | **Insights** | Plain-language diagnoses, each at the step where it appeared. Click to jump there. | Vanishing/exploding gradients, dead or saturated units, learning rate too high/low, overfitting. |
 | **Gradient flow** | Mean \|∂L/∂W\| per layer, input → output, log scale. | Bars shrinking towards the input = vanishing gradients (e.g. deep sigmoid nets). |
 | **Layer health** | ‖W‖, ‖∇W‖ and the update ratio ‖ΔW‖/‖W‖ per layer over time, plus W and ∇W histograms. | Update ratio ≈ 10⁻³ per SGD step is healthy; ≈ 10⁻¹ is too high. |
-| **Activations** | Per neuron: mean activation and fraction of samples where it is active. | Neurons at 0 % active pass no gradient back and have stopped learning. |
+| **Activations** | Per neuron: mean activation and fraction of samples where it is active. | A ReLU at 0 % active is *dead*: no gradient flows through it, so its own weights stop learning (it can revive only if earlier layers change). A LeakyReLU at 0 % is just *inactive* and still learns slowly. |
 | **Latent space** | Any layer's features (PCA if wider than 2), coloured by label, along the timeline. | Classes starting mixed and ending linearly separable: the network is building a representation. |
 
 Use the **timeline** at the bottom (or ← → and space) to replay training. **Export** saves the network (SVG/PNG), the loss curve,

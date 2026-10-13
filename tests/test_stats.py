@@ -46,3 +46,10 @@ def test_project_2d_pca_recovers_dominant_axis():
     assert np.sign(xy[0, 0]) == np.sign(xy2[0, 0])            # stable sign between calls
     assert project_2d(Z[:, :2])[1] is None                    # 2-D input is shown as-is
     assert project_2d(np.ones((3000, 5)), max_points=1000)[0].shape == (1000, 2)
+
+
+def test_leaky_relu_units_are_inactive_not_dead():
+    A = np.array([[-0.01, 1.0], [-0.02, 2.0]])
+    s = activation_numbers(A, "leaky_relu")
+    assert s["dead"] == 1 and s["dead_kind"] == "inactive"
+    assert activation_numbers(A, "relu")["dead_kind"] == "dead"

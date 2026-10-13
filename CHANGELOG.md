@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 (2026-10-13)
+
+- More accurate dead-unit diagnosis. A ReLU that is never positive is *dead*: its own weights stop learning, but it **can revive**
+  when the earlier layers' outputs change; only first-layer units (whose inputs are the data) stay dead for good. The insight
+  text and the Activations help now say so instead of "zero gradient forever".
+- LeakyReLU units that are never positive are reported as *inactive* (`dead_kind="inactive"`), not dead: they still receive the
+  small gradient α·δ and can recover.
+- The live server no longer prints a traceback when a browser tab is closed or reloaded mid-request.
+
 ## 0.1.1 (2026-09-29)
 
 Fixes found while using nnscope on a real homework (the HW1 companion notebooks).

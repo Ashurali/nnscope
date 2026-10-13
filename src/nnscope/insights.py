@@ -83,12 +83,19 @@ class InsightEngine:
             kind = l.get("dead_kind") or "dead"
             if dead is None or n <= 1:
                 continue
-            word = "dead" if kind == "dead" else "saturated"
-            self._check(f"{word}:{k}", dead / n >= 0.5, step, "warn", "activations",
-                        f"{dead} of {n} {act} units in {names[k]} are {word} on the logged batch "
-                        + ("(never positive → zero gradient forever). Lower the learning rate, use He init or LeakyReLU."
-                           if word == "dead" else "(stuck near ±1 → gradient ≈ 0). Inputs to this layer are too large; "
-                           "normalise inputs or use smaller initial weights."), out)
+            if kind == "saturated":
+                why = ("(stuck near ±1, so their gradient ≈ 0). Inputs to this layer are too large; normalise the inputs or use "
+                       "smaller initial weights.")
+            elif kind == "inactive":
+                why = ("(never positive). Unlike ReLU they still pass a small gradient (α·δ), so they can recover, but slowly.")
+            else:
+                why = ("(never positive, so no gradient flows through them and their own weights stop learning). "
+                       + ("In the first layer the inputs never change, so they will not come back. " if k == 0 else
+                          "They can only come back if the earlier layers' outputs change. ")
+                       + "Typical causes: too large first updates (lower the learning rate or warm it up) or poor init; "
+                         "LeakyReLU keeps a small gradient flowing.")
+            self._check(f"{kind}:{k}", dead / n >= 0.5, step, "warn", "activations",
+                        f"{dead} of {n} {act} units in {names[k]} are {kind} on the logged batch {why}", out)
 
         test_key = next((k for k in scalars if ("test" in k or "val" in k) and "loss" in k), None)
         if test_key and loss is not None and scalars[test_key] is not None and np.isfinite(scalars[test_key]):

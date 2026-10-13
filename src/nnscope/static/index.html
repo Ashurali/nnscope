@@ -212,9 +212,11 @@
     <div class="help" id="help-acts">
       <p>For each hidden layer, one cell per drawn neuron: the top strip is its <b>mean activation</b> on the logged batch, the bottom strip the
         <b>fraction of samples where it is active</b> (ReLU: output &gt; 0; tanh/sigmoid: not saturated).</p>
-      <p>A neuron with 0 % active passes no gradient back, so it has stopped learning (<b style="color:var(--bad)">dead ReLU</b> or
-        <b style="color:var(--bad)">saturated</b> unit). Activation stats need activations: they are read automatically from layers that cache
-        their input (e.g. <code>Linear.x</code>), or pass <code>activations=[a1, a2, …]</code>.</p></div>
+      <p>A ReLU at 0 % active is <b style="color:var(--bad)">dead</b>: no gradient flows through it, so its own weights stop learning.
+        It can only come back if its <i>inputs</i> change, which is impossible in the first layer, where the inputs are the data. A LeakyReLU
+        unit at 0 % is merely <b>inactive</b>: it still passes the small gradient α·δ and can recover. A tanh/sigmoid unit stuck near ±1 is
+        <b style="color:var(--bad)">saturated</b> (gradient ≈ 0). Activation stats need activations: they are read automatically from layers that
+        cache their input (e.g. <code>Linear.x</code>), or pass <code>activations=[a1, a2, …]</code>.</p></div>
     <div id="acts"></div>
   </section>
 
@@ -732,7 +734,7 @@ function drawActs() {
     box.innerHTML = rows.map((r) => `<div class="act-row"><div class="nm" id="actnm${r.k}"></div><canvas data-a="${r.k}"></canvas></div>`).join("");
   }
   rows.forEach(({ l, k, nd, rec }) => {
-    const dead = rec && rec.dead ? rec.dead : 0, kind = rec && rec.dead_kind === "saturated" ? "saturated" : "dead";
+    const dead = rec && rec.dead ? rec.dead : 0, kind = (rec && rec.dead_kind) || "dead";
     $("actnm" + k).innerHTML = `<b>layer ${k + 1}</b> · ${l.act || "linear"} · ${l.out} units` +
       (rec && rec.frac_active !== undefined && rec.frac_active !== null ? ` · ${Math.round(rec.frac_active * 100)}% active on average` : "") +
       (dead ? ` · <span class="dead">${dead} ${kind}</span>` : "");

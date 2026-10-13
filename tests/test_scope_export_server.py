@@ -128,3 +128,28 @@ def test_png_snapshot_does_not_touch_the_matplotlib_backend(tmp_path):
     out = tmp_path / "net.png"
     scope.snapshot(str(out))
     assert out.stat().st_size > 1000 and mpl.get_backend() == before
+
+
+def test_dead_messages_distinguish_first_layer_deeper_layers_and_leaky():
+    struct = {"layers": [{"out": 16, "act": "relu"}, {"out": 16, "act": "relu"}, {"out": 16, "act": "leaky_relu"},
+                         {"out": 1, "act": None}]}
+    e = InsightEngine()
+    msgs = {}
+    for s in range(5):
+        rec = {"step": s, "scalars": {"loss": 1.0},
+               "layers": [{"dead": 12, "dead_kind": "dead"}, {"dead": 12, "dead_kind": "dead"},
+                          {"dead": 12, "dead_kind": "inactive"}, {}]}
+        for ins in e.update(rec, struct):
+            msgs[ins["message"].split(" are ")[0]] = ins["message"]
+    first, second, leaky = msgs["12 of 16 relu units in layer 1"], msgs["12 of 16 relu units in layer 2"], msgs["12 of 16 leaky_relu units in layer 3"]
+    assert "will not come back" in first and "earlier layers" in second and "forever" not in first + second + leaky
+    assert "inactive" in leaky and "α·δ" in leaky
+
+
+def test_server_ignores_dropped_connections(capsys):
+    from nnscope.server import _QuietServer
+    try:
+        raise ConnectionAbortedError("tab closed")
+    except ConnectionAbortedError:
+        _QuietServer.handle_error(None, None, ("127.0.0.1", 1))
+    assert capsys.readouterr().err == ""
